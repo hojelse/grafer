@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+	--foreground-rgb: 0, 0, 0;
+	--background-rgb: 214, 219, 220;
+}
+
+body {
+	color: rgb(var(--foreground-rgb));
+	background: rgb(var(--background-rgb));
+}
+
+button {
+	border: 1px solid #bbb;
+	border-radius: 5px;
+	padding: 5px 10px;
+}
+
+textarea {
+	background: none;
+	border: 1px solid #bbb;
+	border-radius: 5px;
+	padding: 5px 10px;
+}
