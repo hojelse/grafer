@@ -5,6 +5,7 @@
 		embedding_to_embedding_string,
 		adj_to_adj_string
 	} from "$lib/util.client"
+	import ComputedProperties from "./ComputedProperties.svelte";
 
 	export let new_data;
 
@@ -32,10 +33,48 @@
 	// 	? embedding_string_to_embedding(new_data.graph.embedding)
 	// 	: regular_polygon_embedding(Object.keys(adj), 100, {x: 0, y: 0})
 	let embedding = embedding_string_to_embedding(new_data.graph.embedding);
-	
-	$: update_g = update_graph(new_data)
+
+	let history = [{
+		adj: JSON.parse(JSON.stringify(adj)),
+		emb: JSON.parse(JSON.stringify(embedding))
+	}]
+	let history_pointer = 0;
+
+	$: on_history_pointer_change = blah(history_pointer)
+	function blah(history_pointer) {
+		adj = JSON.parse(JSON.stringify(history[history_pointer].adj));
+		embedding = JSON.parse(JSON.stringify(history[history_pointer].emb));
+	}
+
+	let timer;
+	function record_history(
+		_adj: Record<number, number[]>,
+		_emb: Record<number, {x: number; y: number; }>
+	) {
+		if (history_pointer < history.length-1) {
+			history.splice(history_pointer+1);
+		}
+
+		clearTimeout(timer);
+		timer = setTimeout(() => {
+			// history.splice(history.length-1)
+			// history_pointer--;
+			
+
+			let adj_copy = JSON.parse(JSON.stringify(_adj));
+			let emb_copy = JSON.parse(JSON.stringify(_emb));
+			history.push({
+				adj: adj_copy,
+				emb: emb_copy
+			});
+			history = history; // force reaction
+			history_pointer++;
+		}, 100);
+	}
+
+	$: on_new_data = update_graph(new_data)
 	function update_graph(new_data) {
-		adj = adj_string_to_adj(new_data.graph?.adj)
+		adj = adj_string_to_adj(new_data.graph?.adj);
 		N = Object.entries(adj).length;
 		// embedding = new_data.graph.embedding
 		// 	? embedding_string_to_embedding(new_data.graph.embedding)
@@ -44,19 +83,22 @@
 
 		let missing_vertices = Object.keys(adj).filter(x => !Object.keys(_em).includes(x));
 		for (let v of missing_vertices) {
-			_em[v] = {x: Math.floor(Math.random()*999-500), y: Math.floor(Math.random()*999-500)}
+			_em[v] = {
+				x: Math.floor(Math.random()*999-500),
+				y: Math.floor(Math.random()*999-500)
+			};
 		}
 
 		embedding = _em
 	}
 
-	$: ordering = update_ordering(embedding, adj)
-	function update_ordering(_emb, _adj) {
-		if (disable_ordering) return;
-		for (const [k, v] of Object.entries(adj)) {
-			adj[Number(k)] = v.sort((_emb, _adj) => orientation(embedding[Number(k)], embedding[_emb]) - orientation(embedding[Number(k)], embedding[_adj]))
-		}
-	}
+	// $: ordering = update_ordering(embedding, adj)
+	// function update_ordering(_emb, _adj) {
+	// 	if (disable_ordering) return;
+	// 	for (const [k, v] of Object.entries(adj)) {
+	// 		adj[Number(k)] = v.sort((_emb, _adj) => orientation(embedding[Number(k)], embedding[_emb]) - orientation(embedding[Number(k)], embedding[_adj]))
+	// 	}
+	// }
 
 	// $: update_d = update_new_data(adj, embedding);
 	// function update_new_data(_adj: Record<number, Array<number>>, _embedding: Record<number, {x: number, y: number }>) {
@@ -132,12 +174,13 @@
 	function addVertex(x: number, y: number) {
 		N++;
 		const newId = next_id;
-
+		
 		adj[newId] = []
 		embedding[newId] = {x, y};
 
 		adj = adj; // force reaction
 		embedding = embedding; // force reaction
+		record_history(adj, embedding)
 	}
 
 	function removeItemAll(arr, value) {
@@ -164,18 +207,21 @@
 
 		adj = adj; // force reaction
 		embedding = embedding; // force reaction
+		record_history(adj, embedding)
 	}
 
 	function addEdge(u: number, v: number) {
 		adj[u].push(v);
 		adj[v].push(u);
 		adj = adj; // force reaction
+		record_history(adj, embedding)
 	}
-	
+
 	function removeEdge(u: number, v: number) {
 		adj[u] = removeItemAll(adj[u], v);
 		adj[v] = removeItemAll(adj[v], u);
 		adj = adj; // force reaction
+		record_history(adj, embedding)
 	}
 
 	$: adj_string = adj_to_adj_string(adj);
@@ -191,6 +237,12 @@
 	function onKeyDown(evt: KeyboardEvent) {
 		if (evt.key === "Shift") {
 			moveMode = true;
+		}
+		if (evt.key === "z") {
+			history_pointer = Math.max(0, history_pointer-1);
+		}
+		if (evt.key === "y") {
+			history_pointer = Math.min(history.length-1, history_pointer+1);
 		}
 	}
 	function onKeyUp(evt: KeyboardEvent) {
@@ -232,8 +284,8 @@
 	}
 </script>
 <svelte:window
-on:keydown={onKeyDown}
-on:keyup={onKeyUp}
+	on:keydown={onKeyDown}
+	on:keyup={onKeyUp}
 />
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
@@ -275,6 +327,7 @@ on:keyup={onKeyUp}
 
 							if (moveMode) {
 								embedding[drag_from] = {x, y};
+								record_history(adj, embedding)
 							} else {
 								drag_to = {x, y};
 							}
@@ -368,11 +421,37 @@ on:keyup={onKeyUp}
 			</div>
 		</div>
 	</div>
+	<div style="display: flex; justify-content: space-around;">
+		<p style="display: inline-block;"><span class="keybind">z</span> - undo</p>
+		<p style="display: inline-block;"><span class="keybind">y</span> - redo</p>
+		<p style="display: inline-block;">hold <span class="keybind">shift</span> - move</p>
+	</div>
+	<!-- <h2>History</h2>
+	<div>
+		{#each history as history_item, idx}
+			<div
+				class={`history-item ${idx==history_pointer ? "selected-history-item" : ""}`}
+				on:click={() => {
+					history_pointer = idx;
+				}}
+			>{idx}</div>
+		{/each}
+	</div> -->
+	<h2>Adj</h2>
 	<textarea name="" id="" bind:value={adj_string}></textarea>
+	<h2>Embedding</h2>
 	<textarea name="" id="" bind:value={embedding_string}></textarea>
 </main>
 
 <style>
+	.keybind {
+		font-family: monospace;
+		padding: 5px;
+		border-radius: 5px;
+		background-color: rgb(123, 123, 123);
+		color: white;
+	}
+
 	.unselectable {
 		-webkit-touch-callout: none; /* iOS Safari */
 		-webkit-user-select: none; /* Safari */
@@ -441,5 +520,18 @@ on:keyup={onKeyUp}
 		-ms-user-select: none; /* Internet Explorer/Edge */
 		user-select: none; /* Non-prefixed version, currently
 		supported by Chrome, Edge, Opera and Firefox */
+	}
+
+	.history-item {
+		display: inline-block;
+		height: 15px;
+		width: 15px;
+		border-radius: 50%;
+		background-color: grey;
+		margin-right: 10px;
+	}
+
+	.selected-history-item {
+		background-color: red;
 	}
 </style>
