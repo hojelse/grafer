@@ -421,22 +421,13 @@
 			</div>
 		</div>
 	</div>
-	<div style="display: flex; justify-content: space-around;">
-		<p style="display: inline-block;"><span class="keybind">z</span> - undo</p>
-		<p style="display: inline-block;"><span class="keybind">y</span> - redo</p>
-		<p style="display: inline-block;">hold <span class="keybind">shift</span> - move</p>
-	</div>
-	<!-- <h2>History</h2>
-	<div>
-		{#each history as history_item, idx}
-			<div
-				class={`history-item ${idx==history_pointer ? "selected-history-item" : ""}`}
-				on:click={() => {
-					history_pointer = idx;
-				}}
-			>{idx}</div>
-		{/each}
-	</div> -->
+	{#if !disable_editing}
+		<div style="display: flex; justify-content: space-around;">
+			<p style="display: inline-block;"><span class="keybind">z</span> - undo</p>
+			<p style="display: inline-block;"><span class="keybind">y</span> - redo</p>
+			<p style="display: inline-block;">hold <span class="keybind">shift</span> - move</p>
+		</div>
+	{/if}
 	<h2>Adj</h2>
 	<textarea name="" id="" bind:value={adj_string}></textarea>
 	<h2>Embedding</h2>
