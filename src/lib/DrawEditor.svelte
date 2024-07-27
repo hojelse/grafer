@@ -282,6 +282,42 @@
 
 		return embedding
 	}
+
+	function neigbors_has_correct_rotation(k: number): boolean {
+		if (adj[k].length < 2) return true
+		
+		const origin = embedding[k]
+		
+		let min_orientation_idx = 0
+		let min_orientation = orientation(origin, embedding[adj[k][0]])
+		for (let i = 1; i < adj[k].length; i++) {
+			let candidate = orientation(origin, embedding[adj[k][i]])
+			if (candidate < min_orientation) {
+				min_orientation_idx = i
+				min_orientation = candidate
+			}
+		}
+
+		console.log("min element", adj[k][min_orientation_idx])
+
+		console.log("orientations around", k)
+		for (let i = 0; i < adj[k].length; i++) {
+			let idx = (min_orientation_idx + i) % adj[k].length
+			let other = adj[k][idx]
+			console.log("to", other, orientation(origin, embedding[other]))
+		}
+
+		for (let i = 0; i < adj[k].length-1; i++) {
+			if (
+				orientation(origin, embedding[adj[k][(min_orientation_idx + i) % adj[k].length]])
+				> orientation(origin, embedding[adj[k][(min_orientation_idx + i + 1) % adj[k].length]])
+			) {
+				return false
+			}
+		}
+
+		return true
+	}
 </script>
 <svelte:window
 	on:keydown={onKeyDown}
@@ -376,6 +412,14 @@
 					</g>
 					<g id="vertices_container">
 						{#each Object.entries(adj) as [k, v]}
+							{#if !neigbors_has_correct_rotation(k)}
+								<circle
+									r="15"
+									cx={embedding[Number(k)].x}
+									cy={embedding[Number(k)].y}
+									fill={"orange"}
+								></circle>
+							{/if}
 							<circle
 								r="10"
 								on:click={(evt) => {
