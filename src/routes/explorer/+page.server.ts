@@ -6,7 +6,6 @@ export function load() {
 		cwd: process.cwd(),
 	}
 }
-
 export const actions: Actions = {
 	default: async ({ request }) => {
 		const formData = await request.formData();
@@ -18,54 +17,69 @@ export const actions: Actions = {
 			};
 		}
 
-		try {
-			const { graphs, common_embedding } = get_graphs(dir.toString())
-			const directories = fs.readdirSync(dir.toString(), { withFileTypes: true })
-				.filter(dirent => dirent.isDirectory())
-				.map(dirent => dirent.name)
+		const graphs = [];
+		let path = dir.toString();
+
+		if (!fs.existsSync(path)) {
+			path = path.substring(0, path.lastIndexOf('/'));
+		}
+
+		if (!fs.existsSync(path)) {
+			return {
+				error: 'Directory not found',
+			};
+		}
+
+		const pathStats = fs.statSync(path);
+		if (pathStats.isFile()) {
+			const graphs = [{
+				id: 0,
+				name: dir,
+				adj: fs.readFileSync(path, 'utf8')
+			}];
 
 			return {
 				res: {
 					graphs: graphs,
 					dir: dir,
+					directories: undefined,
+					common_embedding: undefined
+				}
+			};
+		} else if (pathStats.isDirectory()) {
+			const files = fs.readdirSync(path);
+			const graph_filenames = files.filter(file => file.endsWith('.in'));
+			let id = 1;
+			for (const graph_filename of graph_filenames) {
+				const graph = fs.readFileSync(path + '/' + graph_filename, 'utf8');
+				graphs.push({
+					id: id++,
+					name: path + '/' + graph_filename,
+					adj: graph,
+				});
+			}
+			const common_embeddings_filenames = files.filter(file => file.endsWith('common_embedding.txt'));
+			let common_embedding;
+			if (common_embeddings_filenames.length === 0) {
+				common_embedding = undefined;
+			} else {
+				common_embedding = fs.readFileSync(path + '/' + common_embeddings_filenames?.[0], 'utf8');
+			}
+			const directories = fs.readdirSync(path, { withFileTypes: true })
+				.filter(d => d.isDirectory() || d.isFile() && d.name.endsWith('.in'))
+				.map(d => d.name);
+			return {
+				res: {
+					graphs: graphs,
+					dir: path,
 					directories: directories,
 					common_embedding: common_embedding
 				}
 			};
-		} catch (error) {
-			if (error.code === 'ENOENT') {
-				return {
-					error: 'Directory not found',
-				};
-			}
+		} else {
+			return {
+				error: 'Directory not found',
+			};
 		}
 	},
 };
-
-function get_graphs(dir: string) {
-	const graphs = []
-	const files = fs.readdirSync(dir.toString())
-	const graph_filenames = files.filter(file => file.endsWith('.in'))
-	let id = 1
-	for (let graph_filename of graph_filenames) {
-		const graph = fs.readFileSync(dir + '/' + graph_filename, 'utf8')
-		graphs.push({
-			id: id++,
-			name: dir + '/' + graph_filename,
-			adj: graph,
-		})
-	}
-
-	const common_embeddings_filenames = files.filter(file => file.endsWith('common_embedding.txt'))
-	if (common_embeddings_filenames.length === 0) {
-		return {
-			graphs: graphs,
-			common_embedding: undefined
-		}
-	}
-	const common_embedding = fs.readFileSync(dir + '/' + common_embeddings_filenames?.[0], 'utf8')
-	return {
-		graphs: graphs,
-		common_embedding: common_embedding
-	}
-}
