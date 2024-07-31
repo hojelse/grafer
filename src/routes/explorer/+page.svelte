@@ -2,7 +2,8 @@
 	import { enhance } from "$app/forms"
 	import DrawEditor from "$lib/DrawEditor.svelte"
 	import ForceGraph from "$lib/ForceGraph.svelte";
-	import { adj_string_to_adj } from "$lib/util.client";
+	import MultigraphEditor from "$lib/MultigraphEditor.svelte";
+	import { adj_string_to_adj, multigraph_string_to_graph_object } from "$lib/util.client";
 	import type { ActionData, PageData } from './$types';
 
 	export let data: PageData;
@@ -91,15 +92,24 @@
 					name={index}
 					adj={adj_string_to_adj(graph.adj)}
 				/>
+			{:else if graph.name.toString().endsWith(".m.in")}
+				<MultigraphEditor
+					disable_editing={true}
+					disable_ordering={true}
+					new_data={{ graph: {
+						...graph,
+						embedding: common_embedding
+					} }}
+				/>
 			{:else}
-			<DrawEditor
-				disable_editing={true}
-				disable_ordering={true}
-				new_data={{ graph: {
-					...graph,
-					embedding: common_embedding
-				} }}
-			/>
+				<DrawEditor
+					disable_editing={true}
+					disable_ordering={true}
+					new_data={{ graph: {
+						...graph,
+						embedding: common_embedding
+					} }}
+				/>
 			{/if}
 		{/each}
 	{/if}

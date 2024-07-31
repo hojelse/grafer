@@ -14,6 +14,43 @@ export const scriptNames = [
 	"contraction"
 ];
 
+export function multigraph_string_to_graph_object(_multigraph_string: string): {adj: Record<string, Array<string>>, edges: Record<string, Array<string>>} {
+	if (!_multigraph_string) return {adj: {}, edges: {}};
+
+	const lines = _multigraph_string.trim().split(/[\n\r]+/).map(x => x.trim().split(' '));
+
+	// expect first line to be number of vertices
+	const num_vertices = Number(lines[0][0]);
+
+	// expect next num_vertices lines to be adjacency list
+	const adj: Record<string, Array<string>> = {}
+	for (const line of lines.slice(1, num_vertices + 1)) {
+		adj[line[0]] = line.slice(1)
+	}
+
+	// expect rest of the lines to be edges, format: edgeid, u, v
+	const edges: Record<string, Array<string>> = {}
+	for (const line of lines.slice(num_vertices + 1)) {
+		edges[line[0]] = line.slice(1)
+	}
+
+	return {adj, edges};
+}
+
+// export function graph_object_to_multigraph_string(_graph_object: {adj: Record<string, Array<string>>, edges: Record<string, Array<string>>}): string {
+// 	if (!_graph_object) return "";
+
+// 	return Object.keys(_graph_object.adj).length + '\n'
+// 		+ Object.entries(_graph_object.adj)
+// 			.reduce((prev, curr, i) => {
+// 				return prev += `${curr[0]} ${Array.from(curr[1]).join(' ')}\n`
+// 			}, "")
+// 		+ Object.entries(_graph_object.edges)
+// 			.reduce((prev, curr, i) => {
+// 				return prev += `${curr[0]} ${Array.from(curr[1]).join(' ')}\n`
+// 			}, "")
+// }
+
 export function adj_string_to_adj(_adj_string: string): Record<string, Array<string>> {
 	if (!_adj_string) return {};
 
