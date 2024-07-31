@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { enhance } from "$app/forms"
 	import DrawEditor from "$lib/DrawEditor.svelte"
+	import ForceGraph from "$lib/ForceGraph.svelte";
+	import { adj_string_to_adj } from "$lib/util.client";
 	import type { ActionData, PageData } from './$types';
 
 	export let data: PageData;
@@ -82,8 +84,14 @@
 				bind:value={common_embedding}
 			/>
 		</div>
-		{#each r.res.graphs as graph}
+		{#each r.res.graphs as graph, index}
 			<p>{graph.name}</p>
+			{#if graph.name.toString().endsWith(".t.in")}
+				<ForceGraph
+					name={index}
+					adj={adj_string_to_adj(graph.adj)}
+				/>
+			{:else}
 			<DrawEditor
 				disable_editing={true}
 				disable_ordering={true}
@@ -92,6 +100,7 @@
 					embedding: common_embedding
 				} }}
 			/>
+			{/if}
 		{/each}
 	{/if}
 </main>
