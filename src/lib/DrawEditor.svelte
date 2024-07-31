@@ -21,7 +21,7 @@
 	$: next_id = get_next_id(adj);
 	function get_next_id(_adj: Record<number, Array<number>>): number {
 		if (!_adj) return 1;
-		let ids = new Set(Object.keys(_adj).map(Number));
+		let ids = new Set(Object.keys(_adj).filter(x => typeof Number(x) === 'number').map(Number));
 		let i = 1;
 		for (; i <= N+1; i++) {
 			if (!ids.has(i)) return i;
@@ -48,8 +48,8 @@
 
 	let timer;
 	function record_history(
-		_adj: Record<number, number[]>,
-		_emb: Record<number, {x: number; y: number; }>
+		_adj: Record<string, string[]>,
+		_emb: Record<string, {x: number; y: number; }>
 	) {
 		if (history_pointer < history.length-1) {
 			history.splice(history_pointer+1);
@@ -92,13 +92,13 @@
 		embedding = _em
 	}
 
-	// $: ordering = update_ordering(embedding, adj)
-	// function update_ordering(_emb, _adj) {
-	// 	if (disable_ordering) return;
-	// 	for (const [k, v] of Object.entries(adj)) {
-	// 		adj[Number(k)] = v.sort((_emb, _adj) => orientation(embedding[Number(k)], embedding[_emb]) - orientation(embedding[Number(k)], embedding[_adj]))
-	// 	}
-	// }
+	$: ordering = update_ordering(embedding, adj)
+	function update_ordering(_emb, _adj) {
+		if (disable_ordering) return;
+		for (const [k, v] of Object.entries(adj)) {
+			adj[k] = v.sort((_emb, _adj) => orientation(embedding[k], embedding[_emb]) - orientation(embedding[k], embedding[_adj]))
+		}
+	}
 
 	// $: update_d = update_new_data(adj, embedding);
 	// function update_new_data(_adj: Record<number, Array<number>>, _embedding: Record<number, {x: number, y: number }>) {
@@ -115,7 +115,7 @@
 		}
 	}
 
-	function count_edges(p: number, q: number) {
+	function count_edges(p: string, q: string) {
 		return adj[p].filter(x => x == q).length;
 	}
 
@@ -126,11 +126,11 @@
 	}
 
 	$: vertexid_to_componentid = components(adj);
-	function components(_adj: Record<number, Array<number>>): Map<number, number> {
+	function components(_adj: Record<string, Array<string>>): Map<string, number> {
 		let components = []
 		// DFS
 		let visited = new Set()
-		for (let v of Object.keys(_adj).map(Number)) {
+		for (let v of Object.keys(_adj)) {
 			if (!visited.has(v)) {
 				let stack = [v]
 				visited = new Set()
@@ -149,7 +149,7 @@
 			}
 		}
 
-		const map = new Map<number, number>();
+		const map = new Map<string, number>();
 		let i = 0;
 		for (let component of components) {
 			for (let x of component) {
@@ -161,7 +161,8 @@
 		return map;
 	}
 
-	function component_color(k: number) {
+	function component_color(k: string) {
+		console.log("color")
 		let component_id = vertexid_to_componentid?.get(k) ?? 0;
 		let num_components = (new Set(vertexid_to_componentid.values())).size;
 		let hue_max = 360;
@@ -187,22 +188,22 @@
 		var i = 0;
 		while (i < arr.length) {
 			if (arr[i] === value) {
-			arr.splice(i, 1);
+				arr.splice(i, 1);
 			} else {
-			++i;
+				++i;
 			}
 		}
 		return arr;
 	}
 
-	function removeVertex(id: number) {
+	function removeVertex(id: string) {
 		N--;
 		
 		delete adj[id];
 		delete embedding[id];
 		
 		for (const [k, v] of Object.entries(adj)) {
-			adj[Number(k)] = removeItemAll(v, id);
+			adj[k] = removeItemAll(v, id);
 		}
 
 		adj = adj; // force reaction
@@ -210,14 +211,14 @@
 		record_history(adj, embedding)
 	}
 
-	function addEdge(u: number, v: number) {
+	function addEdge(u: string, v: string) {
 		adj[u].push(v);
 		adj[v].push(u);
 		adj = adj; // force reaction
 		record_history(adj, embedding)
 	}
 
-	function removeEdge(u: number, v: number) {
+	function removeEdge(u: string, v: string) {
 		adj[u] = removeItemAll(adj[u], v);
 		adj[v] = removeItemAll(adj[v], u);
 		adj = adj; // force reaction
@@ -228,7 +229,7 @@
 
 	$: embedding_string = embedding_to_embedding_string(embedding);
 
-	let drag_from: number | null = null;
+	let drag_from: string | null = null;
 
 	let drag_to: {x: number, y: number} | null = null;
 
@@ -253,7 +254,7 @@
 
 	let svg_sidelength = 1000;
 
-	function regular_polygon_embedding(keys: string[], radius: number, center: {x: number, y: number}): Record<number, {x: number, y: number}> {
+	function regular_polygon_embedding(keys: string[], radius: number, center: {x: number, y: number}): Record<string, {x: number, y: number}> {
 		let rotateVector = function(rad) {
 			const vec = {x: 0, y: -1}
 			let cos = Math.cos(rad);
@@ -272,8 +273,8 @@
 			points.push(rotateVector(i*Math.PI*2/n))
 		}
 
-		const embedding = points.reduce((obj: Record<number, {x: number, y: number}>, point, i) => {
-			obj[Number(keys[i])] = {
+		const embedding = points.reduce((obj: Record<string, {x: number, y: number}>, point, i) => {
+			obj[keys[i]] = {
 				x: Math.round(center.x + (point.x * radius)),
 				y: Math.round(center.y + (point.y * radius))
 			};
@@ -283,7 +284,7 @@
 		return embedding
 	}
 
-	function neigbors_has_correct_rotation(k: number): boolean {
+	function neigbors_has_correct_rotation(k: string): boolean {
 		if (adj[k].length < 2) return true
 		
 		const origin = embedding[k]
@@ -388,20 +389,20 @@
 					<g id="edges_container">
 						{#each Object.entries(adj) as [k, v]}
 							{#each v as u, idx}
-								{#if Number(k) < u}
+								{#if k < u}
 									<path
 										on:click={(evt) => {
 											evt.stopPropagation();
 											if (!moveMode)
-												removeEdge(Number(k), Number(u));
+												removeEdge(k, u);
 										}}
-										stroke={component_color(Number(k))}
+										stroke={component_color(k)}
 										stroke-width="5"
 										fill="none"
 										d={`
-												M ${embedding[Number(k)].x} ${embedding[Number(k)].y}
-												C ${embedding[Number(k)].x + (1 + Math.floor((idx - v.indexOf(u))/2)) * (idx%2==0 ? 1 : -1) * 0.1 * (count_edges(Number(k), u)<=1 ? 0 : 1) * normal_vector(embedding[Number(k)], embedding[u]).x} ${embedding[Number(k)].y + (1 + Math.floor((idx - v.indexOf(u))/2)) * (idx%2==0 ? 1 : -1) * 0.1 * (count_edges(Number(k), u)<=1 ? 0 : 1) * normal_vector(embedding[Number(k)], embedding[u]).y}
-													${embedding[u].x - (1 + Math.floor((idx - v.indexOf(u))/2)) * (idx%2==0 ? 1 : -1) * 0.1 * (count_edges(Number(k), u)<=1 ? 0 : 1) * normal_vector(embedding[u], embedding[Number(k)]).x} ${embedding[u].y - (1 + Math.floor((idx - v.indexOf(u))/2)) * (idx%2==0 ? 1 : -1) * 0.1 * (count_edges(Number(k), u)<=1 ? 0 : 1) * normal_vector(embedding[u], embedding[Number(k)]).y}
+												M ${embedding[k].x} ${embedding[k].y}
+												C ${embedding[k].x + (1 + Math.floor((idx - v.indexOf(u))/2)) * (idx%2==0 ? 1 : -1) * 0.1 * (count_edges(k, u)<=1 ? 0 : 1) * normal_vector(embedding[k], embedding[u]).x} ${embedding[k].y + (1 + Math.floor((idx - v.indexOf(u))/2)) * (idx%2==0 ? 1 : -1) * 0.1 * (count_edges(k, u)<=1 ? 0 : 1) * normal_vector(embedding[k], embedding[u]).y}
+													${embedding[u].x - (1 + Math.floor((idx - v.indexOf(u))/2)) * (idx%2==0 ? 1 : -1) * 0.1 * (count_edges(k, u)<=1 ? 0 : 1) * normal_vector(embedding[u], embedding[k]).x} ${embedding[u].y - (1 + Math.floor((idx - v.indexOf(u))/2)) * (idx%2==0 ? 1 : -1) * 0.1 * (count_edges(k, u)<=1 ? 0 : 1) * normal_vector(embedding[u], embedding[k]).y}
 													${embedding[u].x} ${embedding[u].y}
 											`
 										}
@@ -415,8 +416,8 @@
 							{#if !neigbors_has_correct_rotation(k)}
 								<circle
 									r="15"
-									cx={embedding[Number(k)].x}
-									cy={embedding[Number(k)].y}
+									cx={embedding[k].x}
+									cy={embedding[k].y}
 									fill={"orange"}
 								></circle>
 							{/if}
@@ -425,16 +426,16 @@
 								on:click={(evt) => {
 									if (moveMode) return;
 									evt.stopPropagation();
-									removeVertex(Number(k));
+									removeVertex(k);
 								}}
 								on:pointerdown={(evt) => {
 									evt.stopPropagation();
-									drag_from = Number(k)
+									drag_from = k
 								}}
 								on:pointerup={(evt) => {
 									if (moveMode) return;
 									if (drag_from) {
-										addEdge(drag_from, Number(k));
+										addEdge(drag_from, k);
 										evt.currentTarget.setAttribute("stroke", "none")
 									}
 								}}
@@ -448,14 +449,14 @@
 								on:pointerleave={(evt) => {
 									evt.currentTarget.setAttribute("stroke", "none")
 								}}
-								cx={embedding[Number(k)].x}
-								cy={embedding[Number(k)].y}
-								fill={component_color(Number(k))}
+								cx={embedding[k].x}
+								cy={embedding[k].y}
+								fill={component_color(k)}
 							/>
 							<text
 								class="unselectable"
-								x={embedding[Number(k)].x}
-								y={embedding[Number(k)].y}
+								x={embedding[k].x}
+								y={embedding[k].y}
 								font-size="1em"
 								fill="white"
 							>{k}</text>
