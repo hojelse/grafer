@@ -49,22 +49,30 @@ export const actions: Actions = {
 		} else if (pathStats.isDirectory()) {
 			const files = fs.readdirSync(path);
 			const graph_filenames = files.filter(file => file.endsWith('.in'));
+			
 			let id = 1;
 			for (const graph_filename of graph_filenames) {
 				const graph = fs.readFileSync(path + '/' + graph_filename, 'utf8');
+
+				const embedding_path = path + '/' + graph_filename.replace('.in', '.emb');
+				let embedding: undefined | string = undefined;
+				if (fs.existsSync(embedding_path)) {
+					embedding = fs.readFileSync(embedding_path, 'utf8');
+				}
+
 				graphs.push({
 					id: id++,
 					name: path + '/' + graph_filename,
 					adj: graph,
+					embedding: embedding
 				});
 			}
-			const common_embeddings_filenames = files.filter(file => file.endsWith('common_embedding.txt'));
-			let common_embedding;
-			if (common_embeddings_filenames.length === 0) {
-				common_embedding = undefined;
-			} else {
-				common_embedding = fs.readFileSync(path + '/' + common_embeddings_filenames?.[0], 'utf8');
+
+			let common_embedding = undefined;
+			if (fs.existsSync('common_embedding.emb')) {
+				common_embedding = fs.readFileSync(path + '/' + 'common_embedding.emb', 'utf8');
 			}
+
 			const directories = fs.readdirSync(path, { withFileTypes: true })
 				.filter(d => d.isDirectory() || d.isFile() && d.name.endsWith('.in'))
 				.map(d => d.name);

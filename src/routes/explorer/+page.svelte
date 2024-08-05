@@ -98,7 +98,7 @@
 					disable_ordering={true}
 					new_data={{ graph: {
 						...graph,
-						embedding: common_embedding
+						embedding: graph?.embedding?.toString() ?? common_embedding
 					} }}
 				/>
 			{:else}
@@ -107,7 +107,7 @@
 					disable_ordering={true}
 					new_data={{ graph: {
 						...graph,
-						embedding: common_embedding
+						embedding: graph?.embedding?.toString() ?? common_embedding
 					} }}
 				/>
 			{/if}
