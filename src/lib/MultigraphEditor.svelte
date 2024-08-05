@@ -42,12 +42,12 @@
 	let history_pointer = 0;
 
 	$: on_history_pointer_change = blah(history_pointer)
-	function blah(history_pointer) {
+	function blah(history_pointer: number) {
 		graph = JSON.parse(JSON.stringify(history[history_pointer].graph));
 		embedding = JSON.parse(JSON.stringify(history[history_pointer].emb));
 	}
 
-	let timer;
+	let timer: NodeJS.Timeout;
 	function record_history(
 		_graph: {
 			adj: Record<string, Array<string>>;
@@ -61,10 +61,6 @@
 
 		clearTimeout(timer);
 		timer = setTimeout(() => {
-			// history.splice(history.length-1)
-			// history_pointer--;
-			
-
 			let graph_copy = JSON.parse(JSON.stringify(_graph));
 			let emb_copy = JSON.parse(JSON.stringify(_emb));
 			history.push({
@@ -111,16 +107,130 @@
 	// }
 
 	function normal_vector(p1: {x: number, y: number}, p2: {x: number, y: number}) {
-		let dx = p2.x - p1.x;
-		let dy = p2.y - p1.y;
-		return {
+		let dx = p2.x - p1.x
+		let dy = p2.y - p1.y
+		let vec = {
 			x: -dy,
 			y: +dx
 		}
+		let mag = Math.sqrt(vec.x*vec.x + vec.y*vec.y)
+		let unit = {
+			x: vec.x / mag,
+			y: vec.y / mag
+		}
+		return unit
 	}
 
-	function count_edges(p: string, q: string) {
-		return graph.adj[p].filter(x => x == q).length;
+	function is_similar_edges(e1: string, e2: string) {
+		const is_similar = (
+			graph.edges[e1][0] == graph.edges[e2][0] &&
+			graph.edges[e1][1] == graph.edges[e2][1]
+		) || (
+			graph.edges[e1][0] == graph.edges[e2][1] &&
+			graph.edges[e1][1] == graph.edges[e2][0]
+		)
+
+		return is_similar
+	}
+
+	function count_parallel_edges(edgeid: string) {
+		const uv = graph.edges[edgeid]
+		const v = uv[0];
+		let count = 0;
+		for (let i = 0; i < graph.adj[v].length; i++) {
+			let ei = graph.adj[v][i];
+			if (is_similar_edges(edgeid, ei)) {
+				count++
+			}
+		}
+		return count
+	}
+
+	function parallel_edge_index(edgeid: string) {
+		const uv = graph.edges[edgeid]
+		const v = uv[0];
+		let count = 0;
+		for (let i = 0; i < graph.adj[v].length; i++) {
+			let ei = graph.adj[v][i];
+			if (ei == edgeid) {
+				return count
+			}
+			if (is_similar_edges(edgeid, ei)) {
+				count++
+			}
+		}
+		console.log("graph", graph)
+		throw new Error(`edge ${edgeid} is not in the neighborhood of vertex ${v}??`);
+	}
+
+	function edge_path_string(e: string): string {
+		const uv = graph.edges[e]
+		const u = uv[0]
+		const v = uv[1]
+		const p1 = embedding[u]
+		const p2 = embedding[v]
+		let x1 = p1.x
+		let y1 = p1.y
+		let x2 = p2.x
+		let y2 = p2.y
+
+		const control = control_point(e)
+
+		const str = `
+			M ${x1} ${y1}
+			Q ${control.x} ${control.y}
+			${x2} ${y2}
+		`
+		return str
+	}
+
+	function edge_midpoint(e: string) {
+		const uv = graph.edges[e]
+		const u = uv[0]
+		const v = uv[1]
+		const p1 = embedding[u]
+		const p2 = control_point(e)
+		const p3 = embedding[v]
+		return quadratic_bezier_midpoint(p1, p2, p3)
+	}
+
+	function quadratic_bezier_midpoint(
+		p0: {x: number, y: number},
+		p1: {x: number, y: number},
+		p2: {x: number, y: number},
+	) {
+		return {
+			x: (p1.x + p0.x/2 + p2.x/2)/2,
+			y: (p1.y + p0.y/2 + p2.y/2)/2
+		}
+	}
+
+	function control_point(e: string) {
+		
+		const uv = graph.edges[e]
+		const u = uv[0]
+		const v = uv[1]
+		const p1 = embedding[u]
+		const p2 = embedding[v]
+		
+		const idx = parallel_edge_index(e)
+		
+		const mid = {
+			x: p2.x + ((p1.x - p2.x) / 2),
+			y: p2.y + ((p1.y - p2.y) / 2)
+		}
+
+		const count = count_parallel_edges(e)
+		if (count <= 1) {
+			return mid
+		}
+			
+		const normal = normal_vector(p1, p2)
+
+		return {
+			x: mid.x + (-(count/2)+0.5+idx) * normal.x * 60,
+			y: mid.y + (-(count/2)+0.5+idx) * normal.y * 60
+		}
 	}
 
 	function orientation(p1, p2) {
@@ -235,7 +345,7 @@
 
 	// $: adj_string = graph_object_to_multigraph_string(graph);
 
-	// $: embedding_string = embedding_to_embedding_string(embedding);
+	$: embedding_string = embedding_to_embedding_string(embedding);
 
 	let drag_from: string | null = null;
 
@@ -292,37 +402,41 @@
 	// 	return embedding
 	// }
 
-	// function neigbors_has_correct_rotation(k: string): boolean {
-	// 	if (graph.adj[k].length < 2) return true
-		
-	// 	const origin = embedding[k]
-		
-	// 	let min_orientation_idx = 0
-	// 	let min_orientation = orientation(origin, embedding[graph[k][0]])
-	// 	for (let i = 1; i < graph[k].length; i++) {
-	// 		let candidate = orientation(origin, embedding[graph[k][i]])
-	// 		if (candidate < min_orientation) {
-	// 			min_orientation_idx = i
-	// 			min_orientation = candidate
-	// 		}
-	// 	}
-
-	// 	for (let i = 0; i < graph[k].length; i++) {
-	// 		let idx = (min_orientation_idx + i) % graph[k].length
-	// 		let other = graph[k][idx]
-	// 	}
-
-	// 	for (let i = 0; i < graph[k].length-1; i++) {
-	// 		if (
-	// 			orientation(origin, embedding[graph[k][(min_orientation_idx + i) % graph[k].length]])
-	// 			> orientation(origin, embedding[graph[k][(min_orientation_idx + i + 1) % graph[k].length]])
-	// 		) {
-	// 			return false
-	// 		}
-	// 	}
-
-	// 	return true
+	// function round_decimals(n: number, num_decimals: number) {
+	// 	const factor = Math.pow(10, num_decimals)
+	// 	return Math.round((n + Number.EPSILON) * factor) / factor
 	// }
+
+	function neigbors_has_correct_rotation(v: string): boolean {
+		if (graph.adj[v].length <= 2) return true
+		
+		const origin = embedding[v]
+
+		let neighbors: string[] = JSON.parse(JSON.stringify(graph.adj[v])) // copy
+		let orientations = neighbors.map(e => {
+			let uv = graph.edges[e]
+			let w = uv.filter(x => x!=v)[0]
+			const p1 = embedding[w]
+			let o = orientation(origin, p1)
+			return o
+		})
+
+		let min_orientation_idx = 0
+		for (let i = 0; i < orientations.length; i++)
+			if (orientations[i] < orientations[min_orientation_idx])
+				min_orientation_idx = i
+
+		const rotated_orientations = orientations.splice(min_orientation_idx).concat(orientations)
+
+
+		for (let i = 1; i < rotated_orientations.length; i++) {
+			if (rotated_orientations[i] < rotated_orientations[i-1]) {
+				return false
+			}
+		}
+
+		return true
+	}
 </script>
 <!-- <svelte:window
 	on:keydown={onKeyDown}
@@ -391,46 +505,33 @@
 						/>
 					{/if} -->
 					<g id="edges_container">
-						{#each Object.entries(graph.edges) as [k, UV]}
-							{#if Number(k) > 0}
-								<path
-									on:click={(evt) => {
-										// evt.stopPropagation();
-										// if (!moveMode)
-										// 	removeEdge(UV[0], UV[1]);
-									}}
-									stroke={component_color(UV[0])}
-									stroke-width="5"
-									fill="none"
-									d={`
-											M ${embedding[UV[0]].x} ${embedding[UV[0]].y}
-											L ${embedding[UV[1]].x} ${embedding[UV[1]].y}
-										`
-									}
-								/>
-								<text
-									x={embedding[UV[1]].x + ((embedding[UV[0]].x - embedding[UV[1]].x) / 2)}
-									y={embedding[UV[1]].y + ((embedding[UV[0]].y - embedding[UV[1]].y) / 2)}
-									text-anchor=middle
-									dominant-baseline=middle
-								>
-									{k}
-								</text>
-							{/if}
+						{#each Object.entries(graph.edges) as [e, UV]}
+							<path
+								on:click={(evt) => {
+									// evt.stopPropagation();
+									// if (!moveMode)
+									// 	removeEdge(UV[0], UV[1]);
+								}}
+								stroke={component_color(UV[0])}
+								stroke-width="5"
+								fill="none"
+								d={edge_path_string(e)}
+							/>
+							<text
+								x={edge_midpoint(e).x + 15 * normal_vector(embedding[UV[0]], embedding[UV[1]]).x}
+								y={edge_midpoint(e).y + 15 * normal_vector(embedding[UV[0]], embedding[UV[1]]).y}
+								text-anchor=middle
+								dominant-baseline=middle
+								fill={component_color(e)}
+							>
+								{e}
+							</text>
 						{/each}
 					</g>
 					<g id="vertices_container">
-						{#each Object.entries(graph.adj) as [k, v]}
-							<!-- {#if !neigbors_has_correct_rotation(k)}
-								<circle
-									r="15"
-									cx={embedding[k].x}
-									cy={embedding[k].y}
-									fill={"orange"}
-								></circle>
-							{/if} -->
+						{#each Object.entries(graph.adj) as [v, es]}
 							<circle
-								r="10"
+								r="15"
 								on:click={(evt) => {
 									// if (moveMode) return;
 									// evt.stopPropagation();
@@ -438,7 +539,7 @@
 								}}
 								on:pointerdown={(evt) => {
 									evt.stopPropagation();
-									drag_from = k
+									drag_from = v
 								}}
 								on:pointerup={(evt) => {
 									// if (moveMode) return;
@@ -449,31 +550,57 @@
 								}}
 								on:pointerenter={(evt) => {
 									if (moveMode) return;
-									if (drag_from) {
-										evt.currentTarget.setAttribute("stroke", "red")
-										evt.currentTarget.setAttribute("stroke-width", "5")
-									}
+									// if (drag_from) {
+									// 	evt.currentTarget.setAttribute("stroke", "red")
+									// 	evt.currentTarget.setAttribute("stroke-width", "5")
+									// }
 								}}
 								on:pointerleave={(evt) => {
-									evt.currentTarget.setAttribute("stroke", "none")
+									// evt.currentTarget.setAttribute("stroke", "none")
 								}}
-								cx={embedding[k].x}
-								cy={embedding[k].y}
-								fill={component_color(k)}
+								cx={embedding[v].x}
+								cy={embedding[v].y}
+								fill={`rgb(var(--background-rgb))`}
+								stroke-width="2"
+								stroke={
+									neigbors_has_correct_rotation(v)
+										? component_color(v)
+										: 'orange'
+								}
 							/>
 							<text
 								class="unselectable"
-								x={embedding[k].x}
-								y={embedding[k].y}
-								font-size="1em"
-								fill="white"
-							>{k}</text>
+								x={embedding[v].x}
+								y={embedding[v].y}
+								font-size="1.2em"
+								fill={component_color(v)}
+							>{v}</text>
 						{/each}
 					</g>
+					<defs>
+						<filter x="0" y="0" width="1" height="1" id="solid">
+							<feFlood flood-color={`rgb(var(--background-rgb))`} result="bg" />
+							<feMerge>
+							<feMergeNode in="bg"/>
+							<feMergeNode in="SourceGraphic"/>
+							</feMerge>
+						</filter>
+					</defs>
 				</svg>
 			</div>
 		</div>
 	</div>
+	<!-- {#if !disable_editing}
+		<div style="display: flex; justify-content: space-around;">
+			<p style="display: inline-block;"><span class="keybind">z</span> - undo</p>
+			<p style="display: inline-block;"><span class="keybind">y</span> - redo</p>
+			<p style="display: inline-block;">hold <span class="keybind">shift</span> - move</p>
+		</div>
+	{/if}
+	<h2>Adj</h2>
+	<textarea name="" id="" bind:value={adj_string}></textarea> -->
+	<h2>Embedding</h2>
+	<textarea name="" id="" bind:value={embedding_string}></textarea>
 </main>
 
 <style>

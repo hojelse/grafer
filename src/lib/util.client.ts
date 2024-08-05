@@ -31,7 +31,7 @@ export function multigraph_string_to_graph_object(_multigraph_string: string): {
 	// expect rest of the lines to be edges, format: edgeid, u, v
 	const edges: Record<string, Array<string>> = {}
 	for (const line of lines.slice(num_vertices + 1)) {
-		edges[line[0]] = line.slice(1)
+		edges[line[0]] = line.slice(1).sort()
 	}
 
 	return {adj, edges};
