@@ -3,7 +3,7 @@
 	import DrawEditor from "$lib/DrawEditor.svelte"
 	import ForceGraph from "$lib/ForceGraph.svelte";
 	import MultigraphEditor from "$lib/MultigraphEditor.svelte";
-	import { adj_string_to_adj, multigraph_string_to_graph_object } from "$lib/util.client";
+	import { adj_string_to_adj, embedding_string_to_embedding, embedding_to_embedding_string, multigraph_string_to_graph_object } from "$lib/util.client";
 	import type { ActionData, PageData } from './$types';
 
 	export let data: PageData;
@@ -98,8 +98,19 @@
 					disable_ordering={true}
 					new_data={{ graph: {
 						...graph,
-						embedding: graph?.embedding?.toString() ?? common_embedding
-					} }}
+						embedding: graph?.embedding?.toString() ?? common_embedding,
+						} }}
+					medial={undefined}
+				/>
+			{:else if graph.name.toString().endsWith(".medial.in")}
+				<MultigraphEditor
+					disable_editing={true}
+					disable_ordering={true}
+					new_data={{ graph: {
+						...r.res.graphs.find(g => graph.name.toString().split(".medial.in")[0] == g.name.toString().split(".m.in")[0]),
+						embedding: r.res.graphs.find(g => graph.name.toString().split(".medial.in")[0] == g.name.toString().split(".m.in")[0])?.embedding?.toString() ?? common_embedding,
+						} }}
+					medial={graph}
 				/>
 			{:else}
 				<DrawEditor

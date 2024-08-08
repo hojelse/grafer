@@ -34,8 +34,9 @@ export const actions: Actions = {
 		if (pathStats.isFile()) {
 			const graphs = [{
 				id: 0,
-				name: dir,
-				adj: fs.readFileSync(path, 'utf8')
+				name: dir.toString(),
+				adj: fs.readFileSync(path, 'utf8'),
+				embedding: undefined
 			}];
 
 			return {

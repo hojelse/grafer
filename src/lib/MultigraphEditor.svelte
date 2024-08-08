@@ -7,11 +7,22 @@
 		adj_to_adj_string
 
 	} from "$lib/util.client"
+	import ComputedProperties from "./ComputedProperties.svelte";
+	import DrawEditor from "./DrawEditor.svelte";
 
 	export let new_data;
 
 	export let disable_editing: boolean;
 	export let disable_ordering: boolean;
+	export let medial: {
+		id: number;
+		name: string;
+		adj: string;
+		embedding: string | undefined
+	} | undefined
+
+	console.log(new_data.graph.name)
+	console.log(medial)
 
 	$: moveMode = disable_editing
 		? true
@@ -34,6 +45,56 @@
 	// 	? embedding_string_to_embedding(new_data.graph.embedding)
 	// 	: regular_polygon_embedding(Object.keys(adj), 100, {x: 0, y: 0})
 	let embedding = embedding_string_to_embedding(new_data.graph.embedding);
+
+	let medial_graph: {
+		adj: Record<string, Array<string>>;
+		edges: Record<string, Array<string>>;
+	} | undefined = undefined
+	if (medial) {
+		medial_graph = multigraph_string_to_graph_object(medial?.adj)
+	}
+
+	$: medial_embedding = embedding_to_medial_embedding(embedding)
+
+	console.log("medial_embedding", medial_embedding)
+
+	function embedding_to_medial_embedding(
+		_emb: Record<string, {x: number, y: number}>
+	) {
+		let emb: Record<string, {x: number, y: number}> = {}
+		for (let [e, [u, v]] of Object.entries(graph.edges)) {
+			emb[e] = {
+				x: edge_midpoint(e).x,
+				y: edge_midpoint(e).y
+			}
+		}
+		return emb
+	}
+
+	// $: medial_embedding_trigger = set_medial_embedding(embedding)
+	// function set_medial_embedding(_emb: Record<string, {x: number, y: number}>) {
+	// 	medial_embedding = embedding_to_medial_embedding(_emb)
+	// }
+
+	// function graph_to_medial_embedding(
+	// 	_graph: {
+	// 		adj: Record<string, Array<string>>;
+	// 		edges: Record<string, Array<string>>;
+	// 	}
+	// ): Record<string, {x: number,y: number}> {
+	// 	let new_emb: Record<string, {x:number,y:number}> = {}
+
+	// 	for (const [e, uv] of Object.entries(_graph.edges)) {
+	// 		const p1 = embedding[uv[0]]
+	// 		const p2 = embedding[uv[1]]
+	// 		new_emb[e] = {
+	// 			x: (p1.x + p2.x) / 2,
+	// 			y: (p1.y + p2.y) / 2
+	// 		}
+	// 	}
+
+	// 	return new_emb
+	// }
 
 	let history = [{
 		graph: JSON.parse(JSON.stringify(graph)),
@@ -90,7 +151,13 @@
 		}
 
 		embedding = _em
+		
+		if (medial) {
+			medial_graph = multigraph_string_to_graph_object(medial?.adj)
+		}
 	}
+
+	// $: medial_embedding = graph_to_medial_embedding(graph)
 
 	$: ordering = update_ordering(embedding, graph)
 	function update_ordering(_emb, _graph) {
@@ -163,6 +230,25 @@
 		throw new Error(`edge ${edgeid} is not in the neighborhood of vertex ${v}??`);
 	}
 
+	$: edge_path_strings = get_edge_path_strings(embedding, graph)
+
+	function get_edge_path_strings(
+		_emb: Record<string, {
+			x: number;
+			y: number;
+		}>,
+		_graph : {
+			adj: Record<string, Array<string>>;
+			edges: Record<string, Array<string>>;
+		}
+	) {
+		let path_strings: Record<string, string> = {}
+		for (let [e, uv] of Object.keys(_graph.edges)) {
+			path_strings[e] = edge_path_string(e)
+		}
+		return path_strings
+	}
+
 	function edge_path_string(e: string): string {
 		const uv = graph.edges[e]
 		const u = uv[0]
@@ -182,6 +268,25 @@
 			${x2} ${y2}
 		`
 		return str
+	}
+
+	$: edge_midpoints = get_edge_midpoints(embedding, graph)
+
+	function get_edge_midpoints(
+		_emb: Record<string, {
+			x: number;
+			y: number;
+		}>,
+		_graph : {
+			adj: Record<string, Array<string>>;
+			edges: Record<string, Array<string>>;
+		}
+	) {
+		let midpoints: Record<string, {x: number, y: number}> = {}
+		for (let [e, uv] of Object.keys(_graph.edges)) {
+			midpoints[e] = edge_midpoint(e)
+		}
+		return midpoints
 	}
 
 	function edge_midpoint(e: string) {
@@ -408,7 +513,7 @@
 	// }
 
 	function neigbors_has_correct_rotation(v: string): boolean {
-		if (graph.adj[v].length <= 2) return true
+		if (graph.adj[v] == undefined || graph.adj[v].length <= 2) return true
 		
 		const origin = embedding[v]
 
@@ -515,11 +620,11 @@
 								stroke={component_color(UV[0])}
 								stroke-width="5"
 								fill="none"
-								d={edge_path_string(e)}
+								d={edge_path_strings[e]}
 							/>
 							<text
-								x={edge_midpoint(e).x + 15 * normal_vector(embedding[UV[0]], embedding[UV[1]]).x}
-								y={edge_midpoint(e).y + 15 * normal_vector(embedding[UV[0]], embedding[UV[1]]).y}
+								x={edge_midpoints[e].x + 15 * normal_vector(embedding[UV[0]], embedding[UV[1]]).x}
+								y={edge_midpoints[e].y + 15 * normal_vector(embedding[UV[0]], embedding[UV[1]]).y}
 								text-anchor=middle
 								dominant-baseline=middle
 								fill={component_color(e)}
@@ -527,6 +632,28 @@
 								{e}
 							</text>
 						{/each}
+						{#if medial && medial_graph}
+							{#each Object.entries(medial_graph.edges) as [e, UV]}
+								<path
+									stroke={"black"}
+									stroke-width="5"
+									fill="none"
+									d={`
+										M ${edge_midpoints[UV[0]].x} ${edge_midpoints[UV[0]].y}
+										L ${edge_midpoints[UV[1]].x} ${edge_midpoints[UV[1]].y}
+									`}
+								/>
+								<text
+									x={(edge_midpoints[UV[0]].x + edge_midpoints[UV[1]].x) / 2 + 15 * normal_vector(edge_midpoints[UV[0]], edge_midpoints[UV[1]]).x}
+									y={(edge_midpoints[UV[0]].y + edge_midpoints[UV[1]].y) / 2 + 15 * normal_vector(edge_midpoints[UV[0]], edge_midpoints[UV[1]]).y}
+									text-anchor=middle
+									dominant-baseline=middle
+									fill={"black"}
+								>
+									{e}
+								</text>
+							{/each}
+						{/if}
 					</g>
 					<g id="vertices_container">
 						{#each Object.entries(graph.adj) as [v, es]}
@@ -576,6 +703,29 @@
 								fill={component_color(v)}
 							>{v}</text>
 						{/each}
+						{#if medial && medial_graph}
+							{#each Object.entries(medial_graph.adj) as [v, es]}
+								<circle
+									r="15"
+									cx={medial_embedding[v].x}
+									cy={medial_embedding[v].y}
+									fill={`rgb(var(--background-rgb))`}
+									stroke-width="2"
+									stroke={
+										neigbors_has_correct_rotation(v)
+											? "black"
+											: "orange"
+									}
+								/>
+								<text
+									class="unselectable"
+									x={medial_embedding[v].x}
+									y={medial_embedding[v].y}
+									font-size="1.2em"
+									fill={"black"}
+								>{v}</text>
+							{/each}
+						{/if}
 					</g>
 					<defs>
 						<filter x="0" y="0" width="1" height="1" id="solid">
